@@ -81,6 +81,157 @@ def test_delete_all_clears_namespaces() -> None:
 
 
 @responses.activate
+def test_prune_dry_reports_unused_without_deleting() -> None:
+    responses.get(
+        "http://example.test/repositories/test/namespaces",
+        json={
+            "results": {
+                "bindings": [
+                    {
+                        "prefix": {"value": "ex"},
+                        "namespace": {"value": "http://example.test/ns#"},
+                    }
+                ]
+            }
+        },
+    )
+    responses.post(
+        "http://example.test/repositories/test",
+        json={"head": {}, "boolean": False},
+    )
+
+    result = CliRunner().invoke(
+        main,
+        ["--server", "http://example.test", "--repository", "test", "prune", "--dry"],
+    )
+
+    assert result.exit_code == 0
+    assert "Would delete 1 unused namespace" in result.output
+    assert "ex -> http://example.test/ns#" in result.output
+    assert len(responses.calls) == 2
+
+
+@responses.activate
+def test_prune_deletes_unused_and_keeps_used() -> None:
+    responses.get(
+        "http://example.test/repositories/test/namespaces",
+        json={
+            "results": {
+                "bindings": [
+                    {
+                        "prefix": {"value": "ex"},
+                        "namespace": {"value": "http://example.test/ns#"},
+                    },
+                    {
+                        "prefix": {"value": "schema"},
+                        "namespace": {"value": "https://schema.org/"},
+                    },
+                ]
+            }
+        },
+    )
+    responses.post(
+        "http://example.test/repositories/test",
+        json={"head": {}, "boolean": False},
+    )
+    responses.post(
+        "http://example.test/repositories/test",
+        json={"head": {}, "boolean": True},
+    )
+    responses.delete("http://example.test/repositories/test/namespaces/ex", status=204)
+
+    result = CliRunner().invoke(
+        main,
+        ["--server", "http://example.test", "--repository", "test", "prune"],
+    )
+
+    assert result.exit_code == 0
+    assert "Deleted 1 unused namespace" in result.output
+    assert responses.calls[-1].request.method == "DELETE"
+
+
+@responses.activate
+def test_prune_excludes_prefixes_and_keeps_defaults() -> None:
+    responses.get(
+        "http://example.test/repositories/test/namespaces",
+        json={
+            "results": {
+                "bindings": [
+                    {
+                        "prefix": {"value": "ex"},
+                        "namespace": {"value": "http://example.test/ns#"},
+                    },
+                    {
+                        "prefix": {"value": "rdf"},
+                        "namespace": {
+                            "value": "http://www.w3.org/1999/02/22-rdf-syntax-ns#"
+                        },
+                    },
+                    {
+                        "prefix": {"value": "schema"},
+                        "namespace": {"value": "https://schema.org/"},
+                    },
+                ]
+            }
+        },
+    )
+
+    result = CliRunner().invoke(
+        main,
+        [
+            "--server",
+            "http://example.test",
+            "--repository",
+            "test",
+            "prune",
+            "--dry",
+            "--exclude",
+            "ex",
+            "--keep-defaults",
+        ],
+    )
+
+    assert result.exit_code == 0
+    assert "Would delete 0 unused namespaces (3 kept)" in result.output
+    assert len(responses.calls) == 1
+
+
+@responses.activate
+def test_prune_can_exclude_default_prefix() -> None:
+    responses.get(
+        "http://example.test/repositories/test/namespaces",
+        json={
+            "results": {
+                "bindings": [
+                    {
+                        "prefix": {"value": ""},
+                        "namespace": {"value": "http://example.test/default#"},
+                    }
+                ]
+            }
+        },
+    )
+
+    result = CliRunner().invoke(
+        main,
+        [
+            "--server",
+            "http://example.test",
+            "--repository",
+            "test",
+            "prune",
+            "--dry",
+            "--exclude",
+            "(default)",
+        ],
+    )
+
+    assert result.exit_code == 0
+    assert "Would delete 0 unused namespaces (1 kept)" in result.output
+    assert len(responses.calls) == 1
+
+
+@responses.activate
 def test_import_replace_clears_and_sets_namespaces(tmp_path) -> None:
     path = tmp_path / "namespaces.ttl"
     path.write_text("PREFIX schema: <https://schema.org/>\n", encoding="utf-8")

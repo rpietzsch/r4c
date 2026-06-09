@@ -101,6 +101,11 @@ DEFAULT_PROFILES: dict[str, dict[str, str]] = {
 }
 
 
+DEFAULT_PREFIXES: frozenset[str] = frozenset(
+    prefix for namespaces in DEFAULT_PROFILES.values() for prefix in namespaces
+)
+
+
 PROFILE_NOTES: dict[str, str] = {
     "rdf4j": (
         "Applied RDF4J Rio parser defaults. Plain RDF4J Server does not "

@@ -5,7 +5,7 @@ from pathlib import Path
 import click
 
 from .client import NamespaceClient, NamespaceClientError, repository_url
-from .defaults import DEFAULT_PROFILES, PROFILE_NOTES
+from .defaults import DEFAULT_PREFIXES, DEFAULT_PROFILES, PROFILE_NOTES
 from .formats import LIST_FORMATS, format_namespaces, parse_namespaces
 
 
@@ -194,6 +194,55 @@ def delete_namespace(
     click.echo(f"Deleted {prefix or '(default)'}")
 
 
+@main.command("prune")
+@click.option("--dry", is_flag=True, help="Report unused namespaces without deleting them.")
+@click.option(
+    "--exclude",
+    multiple=True,
+    metavar="PREFIX",
+    help="Keep a prefix even if unused. Repeat or comma-separate.",
+)
+@click.option(
+    "--keep-defaults",
+    is_flag=True,
+    help="Keep prefixes from the built-in default profiles.",
+)
+@click.pass_obj
+def prune_namespaces(
+    client: NamespaceClient | None,
+    dry: bool,
+    exclude: tuple[str, ...],
+    keep_defaults: bool,
+) -> None:
+    """Delete namespaces that are not used by any stored IRI."""
+    client = _require_client(client)
+    namespaces = _call(client.list)
+    if not namespaces:
+        click.echo("No namespaces found")
+        return
+
+    kept_prefixes = _parse_excluded_prefixes(exclude)
+    if keep_defaults:
+        kept_prefixes.update(DEFAULT_PREFIXES)
+
+    unused: list[tuple[str, str]] = []
+    kept = 0
+    for prefix, namespace in sorted(namespaces.items()):
+        if prefix in kept_prefixes:
+            kept += 1
+            continue
+        if not _call(client.namespace_used, namespace):
+            unused.append((prefix, namespace))
+
+    if dry:
+        _echo_prune_result("Would delete", unused, kept)
+        return
+
+    for prefix, _namespace in unused:
+        _call(client.delete, prefix)
+    _echo_prune_result("Deleted", unused, kept)
+
+
 @main.command("defaults")
 @click.argument(
     "profile",
@@ -244,6 +293,31 @@ def _echo_table(namespaces: dict[str, str]) -> None:
 
 def _display_prefix(prefix: str) -> str:
     return prefix if prefix else "(default)"
+
+
+def _parse_excluded_prefixes(exclude: tuple[str, ...]) -> set[str]:
+    prefixes: set[str] = set()
+    for value in exclude:
+        if value == "":
+            prefixes.add("")
+            continue
+        for raw_prefix in value.split(","):
+            prefix = raw_prefix.strip()
+            if prefix == "(default)":
+                prefixes.add("")
+            elif prefix:
+                prefixes.add(prefix)
+    return prefixes
+
+
+def _echo_prune_result(
+    action: str, namespaces: list[tuple[str, str]], kept: int
+) -> None:
+    noun = "namespace" if len(namespaces) == 1 else "namespaces"
+    suffix = f" ({kept} kept)" if kept else ""
+    click.echo(f"{action} {len(namespaces)} unused {noun}{suffix}")
+    for prefix, namespace in namespaces:
+        click.echo(f"{_display_prefix(prefix)} -> {namespace}")
 
 
 def _require_client(client: NamespaceClient | None) -> NamespaceClient:

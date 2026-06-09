@@ -37,6 +37,8 @@ uv run r4c --repository myrepo export namespaces.ttl
 uv run r4c --repository myrepo import namespaces.ttl --replace
 uv run r4c --repository myrepo delete schema
 uv run r4c --repository myrepo delete --all
+uv run r4c --repository myrepo prune --dry
+uv run r4c --repository myrepo prune --exclude rdf,rdfs,owl,xsd --keep-defaults
 uv run r4c --repository myrepo defaults graphdb
 ```
 
@@ -64,6 +66,8 @@ PREFIX schema: <https://schema.org/>
 ```
 
 Imports accept the same form, and also tolerate legacy `@prefix ... .` declarations. Use `-` as the import/export path for stdin/stdout.
+
+`prune` removes namespace declarations whose namespace IRI is not used by stored IRIs in subjects, predicates, objects, literal datatypes, or named graph IRIs. Use `--dry` to preview, `--exclude PREFIX` to keep specific prefixes, and `--keep-defaults` to retain prefixes from the built-in default profiles even if they are unused.
 
 ## Defaults
 

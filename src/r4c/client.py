@@ -70,6 +70,21 @@ class NamespaceClient:
             allowed_statuses={200, 204},
         )
 
+    def namespace_used(self, namespace: str) -> bool:
+        response = self._request(
+            "POST",
+            data={"query": namespace_usage_query(namespace)},
+            headers={
+                "Accept": (
+                    "application/sparql-results+json, "
+                    "application/sparql-results+xml;q=0.9, "
+                    "text/boolean;q=0.8"
+                ),
+                "Content-Type": "application/x-www-form-urlencoded",
+            },
+        )
+        return _parse_sparql_boolean(response)
+
     def _request(
         self,
         method: str,
@@ -106,12 +121,36 @@ class NamespaceClient:
         return response
 
     def _url(self, *parts: str) -> str:
+        if not parts:
+            return self.repository_url.rstrip("/")
         encoded = "/".join(quote(part, safe="") for part in parts)
         return f"{self.repository_url.rstrip('/')}/{encoded}"
 
 
 def repository_url(server_url: str, repository_id: str) -> str:
     return f"{server_url.rstrip('/')}/repositories/{quote(repository_id, safe='')}"
+
+
+def namespace_usage_query(namespace: str) -> str:
+    return f"""ASK {{
+  BIND({_sparql_string(namespace)} AS ?ns)
+  {{
+    {{ ?s ?p ?o . }}
+    UNION
+    {{ GRAPH ?g {{ ?s ?p ?o . }} }}
+  }}
+  FILTER (
+    (BOUND(?g) && isIRI(?g) && STRSTARTS(STR(?g), ?ns)) ||
+    (isIRI(?s) && STRSTARTS(STR(?s), ?ns)) ||
+    STRSTARTS(STR(?p), ?ns) ||
+    (isIRI(?o) && STRSTARTS(STR(?o), ?ns)) ||
+    (isLiteral(?o) && STRSTARTS(STR(DATATYPE(?o)), ?ns))
+  )
+}}"""
+
+
+def _sparql_string(value: str) -> str:
+    return json.dumps(value)
 
 
 def _parse_namespace_listing(response: requests.Response) -> dict[str, str]:
@@ -124,6 +163,40 @@ def _parse_namespace_listing(response: requests.Response) -> dict[str, str]:
         return _parse_sparql_json(text)
 
     return _parse_sparql_xml(text)
+
+
+def _parse_sparql_boolean(response: requests.Response) -> bool:
+    text = response.text.strip()
+    if text.lower() in {"true", "false"}:
+        return text.lower() == "true"
+
+    content_type = response.headers.get("Content-Type", "")
+    if "json" in content_type or text.startswith("{"):
+        try:
+            payload = json.loads(text)
+        except json.JSONDecodeError as exc:
+            raise NamespaceClientError(f"Invalid SPARQL JSON boolean result: {exc}") from exc
+        if "boolean" not in payload:
+            raise NamespaceClientError("SPARQL JSON result did not contain a boolean value")
+        value = payload["boolean"]
+        if isinstance(value, bool):
+            return value
+        if isinstance(value, str) and value.lower() in {"true", "false"}:
+            return value.lower() == "true"
+        raise NamespaceClientError("SPARQL JSON boolean value was not true or false")
+
+    try:
+        root = ElementTree.fromstring(text)
+    except ElementTree.ParseError as exc:
+        raise NamespaceClientError(f"Invalid SPARQL XML boolean result: {exc}") from exc
+
+    xml_ns = {"sparql": "http://www.w3.org/2005/sparql-results#"}
+    value = root.find(".//sparql:boolean", xml_ns)
+    if value is None:
+        value = root.find(".//boolean")
+    if value is None or value.text is None:
+        raise NamespaceClientError("SPARQL XML result did not contain a boolean value")
+    return value.text.strip().lower() == "true"
 
 
 def _parse_sparql_json(text: str) -> dict[str, str]:
