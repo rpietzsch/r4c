@@ -2,6 +2,32 @@
 
 `r4c` is a small `uv`-managed CLI for managing RDF4J and GraphDB repository namespaces through the RDF4J REST API.
 
+## Install
+
+Install directly from the public GitHub repository with `uv`:
+
+```sh
+uv tool install "r4c @ git+https://github.com/rpietzsch/r4c.git@develop"
+```
+
+Then run:
+
+```sh
+r4c --help
+```
+
+If the command is not on your `PATH`, run:
+
+```sh
+uv tool update-shell
+```
+
+To upgrade an existing install:
+
+```sh
+uv tool upgrade r4c
+```
+
 ## Usage
 
 ```sh
