@@ -10,6 +10,14 @@ Install directly from the public GitHub repository with `uv`:
 uv tool install "r4c @ git+https://github.com/rpietzsch/r4c.git@develop"
 ```
 
+Update with:
+
+```sh
+uv tool upgrade r4c
+# or
+uv tool install --force "r4c @ git+https://github.com/rpietzsch/r4c.git@develop"
+```
+
 Then run:
 
 ```sh
