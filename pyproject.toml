@@ -1,0 +1,26 @@
+[project]
+name = "r4c"
+version = "0.1.0"
+description = "Manage RDF4J and GraphDB repository namespaces from the command line."
+readme = "README.md"
+requires-python = ">=3.11"
+dependencies = [
+    "click>=8.1.8",
+    "requests>=2.32.0",
+]
+
+[project.scripts]
+r4c = "r4c.cli:main"
+
+[dependency-groups]
+dev = [
+    "pytest>=8.4.0",
+    "responses>=0.25.7",
+]
+
+[build-system]
+requires = ["hatchling"]
+build-backend = "hatchling.build"
+
+[tool.pytest.ini_options]
+testpaths = ["tests"]
