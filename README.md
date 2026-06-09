@@ -25,6 +25,8 @@ You can also use environment variables:
 ```sh
 export RDF4J_SERVER_URL=http://localhost:7200
 export RDF4J_REPOSITORY=myrepo
+export RDF4J_USERNAME=admin
+export RDF4J_PASSWORD=root
 uv run r4c list
 ```
 

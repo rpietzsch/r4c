@@ -31,8 +31,19 @@ CONTEXT_SETTINGS = {"help_option_names": ["-h", "--help"]}
     envvar="RDF4J_REPOSITORY_URL",
     help="Full repository URL, for example http://host/repositories/myrepo.",
 )
-@click.option("--username", "-u", envvar="RDF4J_USERNAME", help="HTTP basic auth username.")
-@click.option("--password", envvar="RDF4J_PASSWORD", help="HTTP basic auth password.")
+@click.option(
+    "--username",
+    "-u",
+    envvar="RDF4J_USERNAME",
+    show_envvar=True,
+    help="HTTP basic auth username.",
+)
+@click.option(
+    "--password",
+    envvar="RDF4J_PASSWORD",
+    show_envvar=True,
+    help="HTTP basic auth password.",
+)
 @click.option("--token", envvar="RDF4J_TOKEN", help="Bearer token for Authorization.")
 @click.option(
     "--timeout",

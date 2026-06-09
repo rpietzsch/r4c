@@ -1,5 +1,7 @@
 from __future__ import annotations
 
+import base64
+
 import responses
 from click.testing import CliRunner
 
@@ -11,6 +13,14 @@ def test_subcommand_help_does_not_require_repository() -> None:
 
     assert result.exit_code == 0
     assert "Export repository namespaces as Turtle prefix declarations." in result.output
+
+
+def test_help_shows_auth_envvars() -> None:
+    result = CliRunner().invoke(main, ["--help"])
+
+    assert result.exit_code == 0
+    assert "RDF4J_USERNAME" in result.output
+    assert "RDF4J_PASSWORD" in result.output
 
 
 @responses.activate
@@ -32,6 +42,29 @@ def test_add_sets_namespace() -> None:
 
     assert result.exit_code == 0
     assert "Set schema -> https://schema.org/" in result.output
+
+
+@responses.activate
+def test_auth_envvars_set_basic_auth() -> None:
+    responses.put("http://example.test/repositories/test/namespaces/schema", status=204)
+
+    result = CliRunner().invoke(
+        main,
+        [
+            "--server",
+            "http://example.test",
+            "--repository",
+            "test",
+            "add",
+            "schema",
+            "https://schema.org/",
+        ],
+        env={"RDF4J_USERNAME": "admin", "RDF4J_PASSWORD": "root"},
+    )
+
+    encoded = base64.b64encode(b"admin:root").decode("ascii")
+    assert result.exit_code == 0
+    assert responses.calls[0].request.headers["Authorization"] == f"Basic {encoded}"
 
 
 @responses.activate
